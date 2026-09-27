@@ -4,7 +4,8 @@ import { getSettings } from './settings.js';
 import { getContext } from './sillytavern.js';
 import { transcribeAndSend } from './transcription.js';
 import { renderHandsFreeControls } from './ui.js';
-import { reportMicrophonePermissionError, validateSetupBeforeListening } from './validation.js';
+import { reportMicrophonePermissionError, reportSetupError, validateSetupBeforeListening } from './validation.js';
+import { encodeWav } from './wav.js';
 
 function getVolumeThreshold() {
     return Number(getSettings().volume_threshold) || VOLUME_THRESHOLD;
@@ -91,11 +92,20 @@ export async function startRecording() {
     runtimeState.recorder.ondataavailable = e => chunks.push(e.data);
     runtimeState.recorder.onstop = async () => {
         runtimeState.isListening = false;
-        const blob = new Blob(chunks, { type: 'audio/webm' });
         runtimeState.recorder = null;
         clearVolumePoller();
-        await releaseAudioResources();
-        await transcribeAndSend(blob, stopListening);
+        let wavBlob;
+        try {
+            const recordedBlob = new Blob(chunks);
+            const decoded = await runtimeState.audioContext.decodeAudioData(await recordedBlob.arrayBuffer());
+            wavBlob = encodeWav(decoded);
+        } catch (err) {
+            console.error('❌ Could not convert microphone recording to WAV:', err);
+            reportSetupError('Could not convert the microphone recording to WAV. Check the browser console for details.');
+        } finally {
+            await releaseAudioResources();
+        }
+        if (wavBlob) await transcribeAndSend(wavBlob, stopListening);
     };
 
     runtimeState.recorder.start();

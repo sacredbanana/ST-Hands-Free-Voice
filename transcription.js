@@ -42,12 +42,6 @@ export async function transcribeAndSend(audioBlob, stopListening) {
             }
             const base64 = btoa(binary);
 
-            const mimeType = audioBlob.type || 'audio/webm';
-            const format = mimeType.includes('ogg')  ? 'ogg'
-                         : mimeType.includes('mp4')  ? 'mp4'
-                         : mimeType.includes('wav')  ? 'wav'
-                         : 'webm';
-
             res = await fetch(`${endpoint}/audio/transcriptions`, {
                 method: "POST",
                 headers: {
@@ -55,14 +49,14 @@ export async function transcribeAndSend(audioBlob, stopListening) {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    input_audio: { data: base64, format },
+                    input_audio: { data: base64, format: 'wav' },
                     model: settings.model
                 })
             });
         } else {
             // ── Groq / Local / OpenAI-compatible: multipart FormData ─────────
             const formData = new FormData();
-            formData.append("file", audioBlob, "recording.webm");
+            formData.append("file", audioBlob, "recording.wav");
             formData.append("model", settings.model);
             const headers = settings.api_key?.trim()
                 ? { "Authorization": `Bearer ${settings.api_key.trim()}` }
